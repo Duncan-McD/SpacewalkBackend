@@ -68,6 +68,19 @@ def updateDistance():
   else:
     return {"success":False, "reason":"You are not authorized to update this data!"}
 
+@app.route("/updateAccountType", methods=["POST"])
+def updateAccountType():
+  body = request.get_json()
+  if (authorized(body["username"], body["authKey"])):
+    
+    userid = body['username']
+    public = body['public']
+    test = app.config["users"].find_one_and_update({"ID": userid}, 
+                                  {"$set": {"public": public}})
+    return {"success": bool(test)}
+  else:
+    return {"success":False, "reason":"You are not authorized to update this data!"}
+
 @app.route("/register", methods=["POST"])
 def register():
   body = request.get_json()
@@ -75,6 +88,7 @@ def register():
   name = body['name']
   password = body['password']
   username = body['username']
+  public = body['public']
   doc = app.config["users"].find_one({"email":email})
   doc2 = app.config["users"].find_one({"ID":username})
   new_user = {
@@ -86,11 +100,12 @@ def register():
     "level": 0,
     "confirmationKey": str(uuid4()),
     "confirmed": False,
-    "authKey": str(uuid4())
+    "authKey": str(uuid4()),
+    "public": public
   }
   if(not doc and not doc2): 
     test = app.config["users"].insert_one(new_user)
-    emailer.send_email(new_user["confirmationKey"], email, name.split()[0] , username)
+    emailer.send_confirm(new_user["confirmationKey"], email, name.split()[0] , username)
     return {"success": bool(test)}
   else:
     if(doc and doc2):reason ="Email and username already in use! :("
@@ -159,4 +174,36 @@ def emailConfirmation():
         txt = f.read()
       return txt
 
-      
+@app.route("/passwordReset", methods=["POST"])
+def passwordReset():
+  return {}
+
+@app.route("/deleteUser", methods=["POST"])
+def deleteUser():
+  
+  body = request.get_json()
+  username = (body['username'])
+  password = body['password']
+  if (authorized(body["username"], body["authKey"])):
+    doc = app.config["users"].find_one({"ID":username})
+    if compare_string_hashed(password,doc["password"]):
+      res = app.config["users"].delete_one({"ID":username})
+      return {"success": bool(res)}
+    else:
+      return {"success": False, "reason": "Password did not match"}
+  else:
+    return {"success": False, "reason": "You are not authorized to delete this user"}
+
+@app.route("/leaderboard", methods=["GET"])
+def leaderboard():
+  amount = request.args.get('amount')
+  cursor = app.config["users"].find( { 'level': { '$gte': 2 }, 'public': True } )
+  sortedCursor = cursor.sort("walkedDistance", -1)
+  sortedList = list(sortedCursor)
+  sortedLeaderboard = [{"username": user["ID"], "distanceWalked" : user["walkedDistance"]} for user in sortedList]
+
+
+  if int(amount) > len(sortedLeaderboard):
+    return {"success": True, "leaderboard":sortedLeaderboard}
+  else:
+    return {"success": True, "leaderboard":sortedLeaderboard[0:amount]}

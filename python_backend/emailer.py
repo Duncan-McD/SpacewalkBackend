@@ -6,7 +6,7 @@ import bs4
 
 
 
-def send_email(confirmationKey, email, name, username):
+def send_confirm(confirmationKey, email, name, username):
     port = 465  # For SSL
     f = open('./python_backend/credentials.json')
 
@@ -44,5 +44,7 @@ def send_email(confirmationKey, email, name, username):
         server.login("spacewalkapp@gmail.com", credentials["password"])
         server.sendmail(sender_email, receiver_email, msg.as_string())
 
+
+
 if __name__ == "__main__":
-  send_email("test","dam342@cornell.edu","Duncan")
+  send_confirm("test","dam342@cornell.edu","Duncan")
