@@ -22,7 +22,7 @@ def main(args):
   app.config["db"] = db
   app.config["users"] = db.Users
   app.config["bodies"] = db.Bodies
-  app.run(debug=args.debug, host='0.0.0.0')
+  app.run(threaded=True,debug=args.debug, host='0.0.0.0')
 
 if __name__ == "__main__":
   main(sys.argv[1:])
