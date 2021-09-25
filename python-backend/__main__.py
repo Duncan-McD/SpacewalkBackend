@@ -9,6 +9,9 @@ def main(args):
   parser.add_argument('-d','--debug', action='store_true', 
       help='turns on flask debug setting',
       default=False)
+  parser.add_argument('-s','--singlethread', action='store_true', 
+      help='turns off flask multithreading setting',
+      default=False)
   args = parser.parse_args(args)
 
 
@@ -22,7 +25,11 @@ def main(args):
   app.config["db"] = db
   app.config["users"] = db.Users
   app.config["bodies"] = db.Bodies
-  app.run(threaded=True,debug=args.debug, host='0.0.0.0')
+  if args.singlethread:
+    print(" * Using Only One Thread!!")
+  else:
+    print(" * Multithreading!!")
+  app.run(threaded= not args.singlethread,debug=args.debug, host='0.0.0.0')
 
 if __name__ == "__main__":
   main(sys.argv[1:])
