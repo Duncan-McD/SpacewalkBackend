@@ -1,2 +1,5 @@
 Flask
 pymongo[srv]
+beautifulsoup4
+bs4
+bcrypt

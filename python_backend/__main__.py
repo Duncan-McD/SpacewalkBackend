@@ -15,7 +15,7 @@ def main(args):
   args = parser.parse_args(args)
 
 
-  f = open('./python-backend/credentials.json')
+  f = open('./python_backend/credentials.json')
 
   credentials = json.load(f)
 

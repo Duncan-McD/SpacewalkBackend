@@ -1,7 +1,23 @@
 from flask import Flask, request
 from uuid import uuid4
+import bcrypt
+from python_backend import emailer
 
 app = Flask(__name__)
+
+
+
+#hashes s and returns it as a type bytes
+def hash_string(s):
+    byte_s = bytes(s, 'utf-8')
+    hashed = bcrypt.hashpw(byte_s, bcrypt.gensalt())
+    return hashed
+
+#compare the given user s [type str] to a users hashed password [type bytes]
+def compare_string_hashed(s, s_hash):
+    assert type(s) == str
+    assert type(s_hash) == bytes
+    return bcrypt.checkpw(s.encode('utf-8'), s_hash)
 
 def authorized(username, authKey):
   return bool(app.config["users"].find_one({"ID":username, "authKey":authKey}))
@@ -65,14 +81,17 @@ def register():
     "ID": username,
     "name": name,
     "email": email,
-    "password": password,
+    "password": hash_string(password),
     "walkedDistance": 0,
     "level": 0,
+    "confirmationKey": str(uuid4()),
+    "confirmed": False,
     "authKey": str(uuid4())
   }
   if(not doc and not doc2): 
     test = app.config["users"].insert_one(new_user)
-    return {"success": bool(test), "authKey": new_user["authKey"]}
+    emailer.send_email(new_user["confirmationKey"], email, name.split()[0] , username)
+    return {"success": bool(test)}
   else:
     if(doc and doc2):reason ="Email and username already in use! :("
     elif(doc):reason ="Email already in use! :("
@@ -87,12 +106,19 @@ def login():
   email = body['email']
   password = body['password']
   username = body['username']
-  if not username and not email: return {"success": False, "reason": "no email or username provided"}
-  doc = app.config["users"].find_one({"email":email, "password":password})
-  doc2 = app.config["users"].find_one({"ID":username, "password":password})
-  if not doc and not doc2: return {"success": False, "reason": "email and/or username do not match"}
-
-  return {"success": True, "authKey": doc["authKey"] if doc else doc2["authKey"]}
+  if not username and not email: 
+    return {"success": False, "reason": "no email or username provided"}
+  doc = app.config["users"].find_one({"email":email})
+  doc2 = app.config["users"].find_one({"ID":username})
+  password_correct = compare_string_hashed(password,(doc["password"] if doc else doc2["password"]))
+  if not doc and not doc2: 
+    return {"success": False, "reason": "email or username not registered"}
+  if (not (doc["confirmed"] if doc else doc2["confirmed"])): 
+    return {"success": False, "reason": "You must confirm by email!"}
+  if (password_correct):
+    return {"success": True, "authKey": doc["authKey"] if doc else doc2["authKey"]}
+  else:
+    return {"success": False, "reason": "Incorrect Password"}
 
 @app.route("/logout", methods=["POST"])
 def logout():
@@ -108,3 +134,29 @@ def logout():
   else:
     return {"success":False, "reason":"You are not authorized to log out this user!"}
 
+@app.route("/confirmEmail", methods=["GET"])
+def emailConfirmation():
+  confirmationKey = request.args.get('confirmationKey')
+  username = request.args.get('username')
+  doc = app.config["users"].find_one({"ID":username})
+  if not doc: 
+    with open("./python_backend/pages/emailconfirmfailed.html") as f:
+      txt = f.read()
+    return txt
+  elif doc["confirmationKey"] != confirmationKey:
+    with open("./python_backend/pages/emailconfirmfailed.html") as f:
+      txt = f.read()
+    return txt
+  else:
+    test = app.config["users"].find_one_and_update({"ID":username, "confirmationKey":confirmationKey}, 
+                                {"$set": {"confirmed": True}})
+    if bool(test):
+      with open("./python_backend/pages/emailconfirmed.html") as f:
+        txt = f.read()
+      return txt
+    else:
+      with open("./python_backend/pages/emailconfirmfailed.html") as f:
+        txt = f.read()
+      return txt
+
+      
